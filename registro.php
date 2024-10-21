@@ -1,41 +1,46 @@
 <?php
-// Indicar que la respuesta será en formato JSON
-header("Content-Type: application/json");
-// Incluir el archivo de configuración de la base de datos
-require 'baseDatos.php';
+// Incluir la configuración de la base de datos
+require 'config.php';
 
-// Obtener los datos de la solicitud en formato JSON
+// Establecer el tipo de contenido como JSON
+header("Content-Type: application/json");
+
+// Obtener los datos enviados desde Postman o cualquier otro cliente
 $data = json_decode(file_get_contents("php://input"), true);
 
-// Verificar que los datos requeridos no estén vacíos
-if ( !empty($data['correo']) && !empty($data['contraseña'])) {
-  
-  $correo = htmlspecialchars(strip_tags($data['correo']));
-  $contraseña = password_hash($data['contraseña'], PASSWORD_DEFAULT);
+// Verificar que todos los campos requeridos están presentes
+if (!empty($data['nombre']) && !empty($data['apellido']) && !empty($data['correo']) && !empty($data['contraseña'])) {
 
-  // Verificar si el correo ya está registrado
-  $query = "SELECT * FROM usuarios WHERE correo = :correo";
-  $stmt = $pdo->prepare($query);
-  $stmt->bindParam(":correo", $correo);
-  $stmt->execute();
+    // Sanitizar los datos de entrada
+    $nombre = htmlspecialchars(strip_tags($data['nombre']));
+    $apellido = htmlspecialchars(strip_tags($data['apellido']));
+    $correo = htmlspecialchars(strip_tags($data['correo']));
+    $contraseña = password_hash($data['contraseña'], PASSWORD_DEFAULT); // Encriptar la contraseña
 
-  // Si ya existe un usuario con ese correo, enviar un mensaje de error
-  if ($stmt->rowCount() > 0) {
-    echo json_encode(['message' => 'El correo ya está registrado']);
-  } else {
-    $query = "INSERT INTO usuarios (correo, contraseña) VALUES (:correo, :contraseña)";
-    $stmt = $pdo->prepare($query);
-    $stmt->bindParam(":correo", $correo);
-    $stmt->bindParam(":contraseña", $contraseña);
+    // Verificar si el correo ya está registrado
+    $query = "SELECT * FROM usuarios WHERE correo = ?";
+    $stmt = $mysqli->prepare($query);
+    $stmt->bind_param('s', $correo);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    // Ejecutar la consulta y verificar si se insertó correctamente
-    if ($stmt->execute()) {
-      echo json_encode(['message' => 'Usuario registrado con éxito']);
+    // Si ya existe un usuario con ese correo, enviar un mensaje de error
+    if ($result->num_rows > 0) {
+        echo json_encode(['message' => 'El correo ya está registrado']);
     } else {
-      echo json_encode(['message' => 'Error al registrar el usuario']);
+        // Insertar el nuevo usuario
+        $query = "INSERT INTO usuarios (nombre, apellido, correo, contraseña) VALUES (?, ?, ?, ?)";
+        $stmt = $mysqli->prepare($query);
+        $stmt->bind_param('ssss', $nombre, $apellido, $correo, $contraseña);
+
+        if ($stmt->execute()) {
+            echo json_encode(['message' => 'Usuario registrado con exito']);
+        } else {
+            echo json_encode(['message' => 'Error al registrar el usuario']);
+        }
     }
-  }
 } else {
-  // Si faltan datos en la solicitud, enviar un mensaje de error
-  echo json_encode(['message' => 'Datos incompletos']);
+    echo json_encode(['message' => 'Datos incompletos']);
 }
+?>
+

@@ -1,43 +1,42 @@
 <?php
-// Indicar que la respuesta será en formato JSON
-header("Content-Type: application/json");
-// Incluir el archivo de configuración de la base de datos
-require 'baseDatos.php';
+// Incluir la configuración de la base de datos
+require 'config.php';
 
-// Obtener los datos de la solicitud en formato JSON
+echo "<br />";
+
+// Establecer el tipo de contenido como JSON
+header("Content-Type: application/json");
+
+// Obtener los datos enviados desde Postman
 $data = json_decode(file_get_contents("php://input"), true);
 
-// Verificar que los campos de correo y contraseña no estén vacíos
+// Verificar que los campos de correo y contraseña no están vacíos
 if (!empty($data['correo']) && !empty($data['contraseña'])) {
-  $correo = htmlspecialchars(strip_tags($data['correo']));
-  $contraseña = $data['contraseña'];
 
-  $query = "SELECT * FROM usuarios WHERE correo = :correo";
-  $stmt = $pdo->prepare($query);
-  $stmt->bindParam(":correo", $correo);
-  $stmt->execute();
+    // Sanitizar los datos de entrada (evitando SQL Injection).
+    $correo = htmlspecialchars(strip_tags($data['correo']));
+    $contraseña = $data['contraseña'];
 
-  // Si se encuentra un usuario con ese correo
-  if ($stmt->rowCount() > 0) {
-    // Obtener los datos del usuario
-    $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+    // Verificar si el correo existe en la base de datos
+    $query = "SELECT * FROM usuarios WHERE correo = ?";
+    $stmt = $mysqli->prepare($query);
+    $stmt->bind_param('s', $correo);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    // Verificar la contraseña
-    if (password_verify($contraseña, $usuario['contraseña'])) {
-      // Si la contraseña es correcta, devolver los datos del usuario
-      echo json_encode([
-        'message' => 'Inicio de sesión exitoso',
-        'usuario' => [
-          'id' => $usuario['id'],
-          'correo' => $usuario['correo']
-        ]
-      ]);
+    // Si el correo está registrado, verificar la contraseña
+    if ($result->num_rows > 0) {
+        $usuario = $result->fetch_assoc();
+        // Verificar la contraseña encriptada
+        if (password_verify($contraseña, $usuario['contraseña'])) {
+            echo json_encode(['message' => 'Inicio de sesion exitoso']);
+        } else {
+            echo json_encode(['message' => 'Contrasena incorrecta']);
+        }
     } else {
-      echo json_encode(['message' => 'Contraseña incorrecta']);
+        echo json_encode(['message' => 'El correo no está registrado']);
     }
-  } else {
-    echo json_encode(['message' => 'Usuario no encontrado']);
-  }
 } else {
-  echo json_encode(['message' => 'Datos incompletos']);
+    echo json_encode(['message' => 'Datos incompletos']);
 }
+?>
